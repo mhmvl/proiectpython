@@ -1,0 +1,107 @@
+import sqlite3
+import csv
+import pandas as pd
+from datetime import datetime
+
+def initializeaza_baza_date():
+    conexiune = sqlite3.connect("depozit.db")
+    cursor = conexiune.cursor()
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS produse (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            denumire TEXT NOT NULL,
+            cantitate INTEGER NOT NULL,
+            locatie TEXT
+        )
+    """)
+    conexiune.commit()
+    conexiune.close()
+
+def adauga_produs():
+    denumire = input("Denumirea produsului: ")
+    cantitate = int(input("Cantitate: "))
+    locatie = input("Locația în depozit: ")
+    with sqlite3.connect("depozit.db") as conexiune:
+        conexiune.execute("INSERT INTO produse (denumire, cantitate, locatie) VALUES (?, ?, ?)",
+                          (denumire, cantitate, locatie))
+    log_istoric(f"A fost adăugat produsul: {denumire}, Cantitate: {cantitate}, Locație: {locatie}")
+    print("Produs adăugat cu succes.")
+
+def afiseaza_produse():
+    with sqlite3.connect("depozit.db") as conexiune:
+        cursor = conexiune.execute("SELECT * FROM produse")
+        rezultate = cursor.fetchall()
+        if rezultate:
+            for rand in rezultate:
+                print(f"ID: {rand[0]} | Denumire: {rand[1]} | Cantitate: {rand[2]} | Locație: {rand[3]}")
+            # Salvare automată după afișare
+            format_export = input("Salvează stocul ca TXT sau Excel (txt/excel): ").strip().lower()
+            if format_export == "txt":
+                salveaza_txt(rezultate)
+            elif format_export == "excel":
+                salveaza_excel(rezultate, cursor)
+            else:
+                print("Format invalid. Stocul nu a fost salvat.")
+        else:
+            print("Depozitul este gol.")
+
+def actualizeaza_cantitate():
+    id_produs = int(input("ID-ul produsului: "))
+    cantitate_noua = int(input("Noua cantitate: "))
+    with sqlite3.connect("depozit.db") as conexiune:
+        conexiune.execute("UPDATE produse SET cantitate = ? WHERE id = ?", (cantitate_noua, id_produs))
+    log_istoric(f"Actualizat produs ID {id_produs}, Cantitate nouă: {cantitate_noua}")
+    print("Cantitatea a fost actualizată.")
+
+def sterge_produs():
+    id_produs = int(input("ID-ul produsului de șters: "))
+    with sqlite3.connect("depozit.db") as conexiune:
+        conexiune.execute("DELETE FROM produse WHERE id = ?", (id_produs,))
+    log_istoric(f"Șters produs ID {id_produs}")
+    print("Produs șters cu succes.")
+
+def salveaza_txt(rezultate):
+    nume_fisier = f"stoc_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
+    with open(nume_fisier, mode='w', encoding='utf-8') as fisier:
+        for rand in rezultate:
+            fisier.write(f"ID: {rand[0]}, Denumire: {rand[1]}, Cantitate: {rand[2]}, Locație: {rand[3]}\n")
+    print(f"Stocul a fost salvat în fișierul {nume_fisier}")
+
+def salveaza_excel(rezultate, cursor):
+    nume_fisier = f"stoc_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+    df = pd.DataFrame(rezultate, columns=[desc[0] for desc in cursor.description])
+    df.to_excel(nume_fisier, index=False, engine='openpyxl')
+    print(f"Stocul a fost salvat în fișierul {nume_fisier}")
+
+def log_istoric(actiune):
+    with open("istoric.txt", "a", encoding="utf-8") as fisier:
+        ora = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        fisier.write(f"{ora} - {actiune}\n")
+
+def meniu_principal():
+    initializeaza_baza_date()
+    while True:
+        print("\n===== Meniu Depozit =====")
+        print("1. Adaugă produs")
+        print("2. Afișează produse și salvează stoc")
+        print("3. Actualizează cantitate")
+        print("4. Șterge produs")
+        print("5. Ieșire")
+
+        alegere = input("Alege opțiunea dorită: ")
+        if alegere == "1":
+            adauga_produs()
+        elif alegere == "2":
+            afiseaza_produse()
+        elif alegere == "3":
+            actualizeaza_cantitate()
+        elif alegere == "4":
+            sterge_produs()
+        elif alegere == "5":
+            print("La revedere!")
+            break
+        else:
+            print("Opțiune invalidă!")
+
+if __name__ == "__main__":
+    meniu_principal()
